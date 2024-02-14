@@ -51,7 +51,7 @@ def forgot_password_email(email,name):
 
     subject = "Your OTP for verification"
     password = generate_random_string()
-    message = f"Your OTP for verification is {otp}"
+   
     data = {
         'Messages': [
                         {
