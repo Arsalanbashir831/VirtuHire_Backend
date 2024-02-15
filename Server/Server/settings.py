@@ -26,7 +26,9 @@ SECRET_KEY = 'django-insecure-(*y*j!a$pps)(18k1&_gzebf38r+p+o4+xww&p(h_#%vu-w7!r
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["127.0.0.1", ".vercel.app", ".now.sh"]
+ALLOWED_HOSTS = ['']
+
+
 
 
 # Application definition
@@ -128,11 +130,11 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-MEDIA_ROOT = os.path.join(BASE_DIR, 'ui/static')
-MEDIA_URL = 'static/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'profile_pics')
+MEDIA_URL = '/profile_pics/'
 
-RESUME_ROOT = os.path.join(BASE_DIR, 'ui/static')
-RESUME_URL = 'static/'
+RESUME_ROOT = os.path.join(BASE_DIR, 'resume')
+RESUME_URL = '/resume/'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
