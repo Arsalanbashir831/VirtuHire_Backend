@@ -122,28 +122,33 @@ def signup(request):
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 @api_view(['POST'])
 def verify_otp(request):
     email = request.data.get('email', None)
     otp = request.data.get('otp', None)
     
+    # Check if email and otp are provided in the request data
     if not email or not otp:
         return Response("Email and OTP are required", status=status.HTTP_400_BAD_REQUEST)
 
+    # Validate the request data using the serializer
     serializer = verifyOtpSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
+    # Get the user object by email or return 404 if not found
     user = get_object_or_404(CustomUser, email=email)
-
-    if not user.otp == otp:
+    print (user.otp)
+    
+    # Check if the provided OTP matches the user's OTP
+    if not user.otp == int(otp):
         return Response("Incorrect OTP", status=status.HTTP_401_UNAUTHORIZED)
 
+    # Update user verification status to True
     user.is_verified = True
     user.save()
 
+    # Return success response
     return Response("OTP verified", status=status.HTTP_200_OK)
-
 
 @api_view(['POST'])
 def forgotPassword(request):
