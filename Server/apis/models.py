@@ -17,6 +17,7 @@ class Job(models.Model):
     start_date = models.DateField(blank=True)
     end_date = models.DateField(blank=True)
     description = models.TextField(blank=True)
+    job_document = models.FileField(upload_to='Jobs',blank=True)
 
     def __str__(self):
         return f'{self.recruiter.username} Job'

@@ -92,7 +92,6 @@ class JobViewSet(viewsets.ModelViewSet):
 
 
 
-
 @api_view(['POST'])
 def signup(request):
     serializer = UserSerializer(data=request.data)

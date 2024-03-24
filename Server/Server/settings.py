@@ -134,6 +134,10 @@ MEDIA_URL = '/profile_pics/'
 RESUME_ROOT = os.path.join(BASE_DIR, 'resume')
 RESUME_URL = '/resume/'
 
+JOBS_ROOT = os.path.join(BASE_DIR, 'Jobs')
+JOBS_URL = '/Jobs/'
+
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
