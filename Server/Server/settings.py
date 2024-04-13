@@ -103,7 +103,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:5174",
     "https://virtuhirebackend-production.up.railway.app",
-    "https://virtu-hire-frontend.vercel.app"
+    "https://virtu-hire-frontend.vercel.app",
+    'https://virtu-hire.vercel.app'
 ]
 CSRF_TRUSTED_ORIGINS = ['https://virtuhirebackend-production.up.railway.app']
 
