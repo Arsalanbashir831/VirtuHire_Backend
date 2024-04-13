@@ -4,27 +4,40 @@ from apis.models import Job,AppliedJobs,CustomUser
 from django.contrib.auth.hashers import make_password
 
 # Serializers define the API representation.
-class UserSerializer(serializers.HyperlinkedModelSerializer):
+class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ['id', 'username', 'email', 'first_name', 'last_name','profile','is_verified','password']
+        extra_kwargs = {
+            'username': {'required': False},
+            'password': {'required': False, 'write_only': True}
+        }
+
     def create(self, validated_data):
         # Do not hash the password, store it as plain text
         return super().create(validated_data)
 
 
-class JobSerializer(serializers.HyperlinkedModelSerializer):
+class JobSerializer(serializers.ModelSerializer):
+    recruiter = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.all())
+    recruiter_details = UserSerializer(source='recruiter', read_only=True)
     class Meta:
         model = Job
         fields = "__all__"
+        # fields = ['id', 'recruiter', 'title', 'company', 'type','location','postedDate','responsibilities','experience','skills','job_document','recruiter_details','education']
 
-class AppliedJobsSerializer(serializers.HyperlinkedModelSerializer):
+class AppliedJobsSerializer(serializers.ModelSerializer):
+    candidate = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.all())
+    job = serializers.PrimaryKeyRelatedField(queryset=Job.objects.all())
+    candidate_details = UserSerializer(source='candidate', read_only=True)
+    job_details = JobSerializer(source='job', read_only=True)
     class Meta:
         model = AppliedJobs
         fields = "__all__"
+        
 
 
-class verifyOtpSerializer(serializers.HyperlinkedModelSerializer):
+class verifyOtpSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = [ 'email','otp']

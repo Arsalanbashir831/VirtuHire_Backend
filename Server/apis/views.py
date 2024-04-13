@@ -61,22 +61,37 @@ class UserViewSet(viewsets.ModelViewSet):
 class AppliedJobsViewSet(viewsets.ModelViewSet):
     queryset = AppliedJobs.objects.all()
     serializer_class = AppliedJobsSerializer
-#  api/appliedjobs/<candidate_id>/get_jobs
+    authentication_classes = [SessionAuthentication, TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    # Custom action to retrieve all jobs applied by a specific candidate
     @action(detail=True, methods=['get'])
     def get_jobs(self, request, pk=None):
         queryset = AppliedJobs.objects.filter(candidate=pk)
-        serializer = AppliedJobsSerializer(queryset, many=True,context={'request': request}) 
+        serializer = AppliedJobsSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
-    # api/appliedjobs/<job_id>/get_candidate
+    # Custom action to retrieve all candidates who applied for a specific job
     @action(detail=True, methods=['get'])
     def get_candidate(self, request, pk=None):
         queryset = AppliedJobs.objects.filter(job=pk)
-        serializer = AppliedJobsSerializer(queryset, many=True,context={'request': request}) 
+        serializer = AppliedJobsSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
-    authentication_classes = [SessionAuthentication, TokenAuthentication]
-    permission_classes = [IsAuthenticated]
+    # Override create method to enforce unique candidate constraint
+    def create(self, request, *args, **kwargs):
+        candidate_id = request.data.get('candidate')
+        job_id = request.data.get('job')
+
+        # Check if the candidate has already applied for the job
+        if AppliedJobs.objects.filter(candidate=candidate_id, job=job_id).exists():
+            return Response({'error': 'Candidate has already applied for this job'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 class JobViewSet(viewsets.ModelViewSet):
     queryset = Job.objects.all()
