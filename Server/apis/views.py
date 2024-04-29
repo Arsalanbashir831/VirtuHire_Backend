@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework import viewsets
+from rest_framework import viewsets,filters
 from .serializers import UserSerializer
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
@@ -96,17 +96,37 @@ class AppliedJobsViewSet(viewsets.ModelViewSet):
 class JobViewSet(viewsets.ModelViewSet):
     queryset = Job.objects.all()
     serializer_class = JobSerializer
-
-    @action(detail=True, methods=['get'])
-    def get_job_posting(self, request, pk=None):
-        queryset = Job.objects.filter(recruiter=pk)
-        serializer = JobSerializer(queryset, many=True,context={'request': request}) 
-        return Response(serializer.data)
     authentication_classes = [SessionAuthentication, TokenAuthentication]
     permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['title']
+    ordering_fields = ['location', 'type']
 
+    def get_queryset(self):
+        # Get the current authenticated user
+        user = self.request.user
+        
+        # Get IDs of jobs that the user has applied to
+        applied_job_ids = AppliedJobs.objects.filter(candidate=user).values_list('job__id', flat=True)
+        
+        # Exclude jobs that the user has applied to and also exclude jobs posted by the user
+        queryset = Job.objects.exclude(id__in=applied_job_ids).exclude(recruiter=user)
+        
+        # Apply filtering based on query parameters
+        location = self.request.query_params.get('location', None)
+        job_type = self.request.query_params.get('type', None)
+        
+        if location:
+            queryset = queryset.filter(location__icontains=location)
+        if job_type:
+            queryset = queryset.filter(type__icontains=job_type)
+        
+        return queryset
 
-
+    def perform_create(self, serializer):
+        # Assign the authenticated user as the recruiter of the job
+        serializer.save(recruiter=self.request.user)
+        
 @api_view(['POST'])
 def signup(request):
     serializer = UserSerializer(data=request.data)
