@@ -21,5 +21,6 @@ urlpatterns = [
     path('verify_otp', views.verify_otp),
     path('forgot_password', views.forgotPassword),
     path('',include(routers.urls)),
+  
     
 ]

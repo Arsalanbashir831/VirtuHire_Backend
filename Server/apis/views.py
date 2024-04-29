@@ -101,32 +101,65 @@ class JobViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title']
     ordering_fields = ['location', 'type']
+    
+    
+    @action(detail=False, methods=['get'])
+    def posted_by_recruiter(self, request):
+        # Retrieve the recruiter (authenticated user)
+        recruiter = request.user
+        
+        # Filter jobs posted by the recruiter
+        queryset = Job.objects.filter(recruiter=recruiter)
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['put'])
+    def update_posted_by_recruiter(self, request, pk=None):
+        # Retrieve the recruiter (authenticated user)
+        recruiter = request.user
+        
+        # Get the job instance posted by the recruiter
+        job = get_object_or_404(Job, pk=pk, recruiter=recruiter)
+        
+        # Serialize and update the job instance
+        serializer = self.get_serializer(job, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['delete'])
+    def delete_posted_by_recruiter(self, request, pk=None):
+        # Retrieve the recruiter (authenticated user)
+        recruiter = request.user
+        
+        # Get the job instance posted by the recruiter
+        job = get_object_or_404(Job, pk=pk, recruiter=recruiter)
+        
+        # Delete the job instance
+        job.delete()
+        return Response({'message': 'Job deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
+    
 
     def get_queryset(self):
         # Get the current authenticated user
         user = self.request.user
-        
-        # Get IDs of jobs that the user has applied to
         applied_job_ids = AppliedJobs.objects.filter(candidate=user).values_list('job__id', flat=True)
-        
-        # Exclude jobs that the user has applied to and also exclude jobs posted by the user
         queryset = Job.objects.exclude(id__in=applied_job_ids).exclude(recruiter=user)
-        
-        # Apply filtering based on query parameters
-        location = self.request.query_params.get('location', None)
-        job_type = self.request.query_params.get('type', None)
-        
+        location = self.request.query_params.get('location')
+        job_type = self.request.query_params.get('type')
         if location:
             queryset = queryset.filter(location__icontains=location)
         if job_type:
             queryset = queryset.filter(type__icontains=job_type)
         
-        return queryset
+        return queryset 
 
     def perform_create(self, serializer):
         # Assign the authenticated user as the recruiter of the job
         serializer.save(recruiter=self.request.user)
-        
+    
 @api_view(['POST'])
 def signup(request):
     serializer = UserSerializer(data=request.data)
@@ -160,28 +193,23 @@ def signup(request):
 def verify_otp(request):
     email = request.data.get('email', None)
     otp = request.data.get('otp', None)
-    
-    # Check if email and otp are provided in the request data
+
     if not email or not otp:
         return Response("Email and OTP are required", status=status.HTTP_400_BAD_REQUEST)
 
-    # Validate the request data using the serializer
+
     serializer = verifyOtpSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
-    # Get the user object by email or return 404 if not found
     user = get_object_or_404(CustomUser, email=email)
     print (user.otp)
-    
-    # Check if the provided OTP matches the user's OTP
+
     if not user.otp == int(otp):
         return Response("Incorrect OTP", status=status.HTTP_401_UNAUTHORIZED)
 
-    # Update user verification status to True
     user.is_verified = True
     user.save()
 
-    # Return success response
     return Response("OTP verified", status=status.HTTP_200_OK)
 
 @api_view(['POST'])
