@@ -20,6 +20,7 @@ ALLOWED_HOSTS = ["*"]
 # Application definition
 AUTH_USER_MODEL = 'apis.CustomUser'
 INSTALLED_APPS = [
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -30,9 +31,16 @@ INSTALLED_APPS = [
     'apis',
     'rest_framework',
     'rest_framework.authtoken',
-    "corsheaders"
+    "corsheaders",
 ]
+WSGI_APPLICATION = 'Server.wsgi.application'
+ASGI_APPLICATION = 'Server.asgi.application'
 
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}   
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -66,7 +74,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'Server.wsgi.application'
+
 
 
 # Database
