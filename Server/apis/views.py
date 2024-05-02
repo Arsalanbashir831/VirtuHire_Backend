@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework import viewsets,filters
+from rest_framework import viewsets,filters,generics
 from .serializers import UserSerializer
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
@@ -9,8 +9,8 @@ from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
-from apis.models import AppliedJobs,Job,CustomUser
-from apis.serializers import UserSerializer,AppliedJobsSerializer,JobSerializer,verifyOtpSerializer
+from apis.models import AppliedJobs,Job,CustomUser,Message
+from apis.serializers import UserSerializer,AppliedJobsSerializer,JobSerializer,verifyOtpSerializer,MessageSerializer,ReceiverSerializer
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.hashers import check_password,make_password
 from rest_framework.decorators import action
@@ -220,3 +220,56 @@ def forgotPassword(request):
     user = get_object_or_404(CustomUser, email=email)
     forgot_password_email(email=user.email, name=user.username)
     return Response("Your Temporary Password is sended via Email", status=status.HTTP_200_OK)
+
+class ChatListView(generics.ListAPIView):
+    serializer_class = MessageSerializer
+    authentication_classes = [SessionAuthentication, TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        chat_id = self.request.data.get('chat_id')
+
+        if not chat_id:
+            return Message.objects.none()  # Return empty queryset if chat_id is not provided
+        queryset = Message.objects.filter(chat_id=chat_id)
+
+        return queryset
+
+
+class ReceiverDetailsView(generics.ListAPIView):
+    serializer_class = ReceiverSerializer
+    authentication_classes = [SessionAuthentication, TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Get the authenticated user (sender)
+        sender = self.request.user
+        
+        # Retrieve messages sent by the authenticated sender
+        messages_sent_by_sender = Message.objects.filter(sender=sender)
+        receivers_with_chat_ids = messages_sent_by_sender.values('receiver', 'chat_id').distinct()
+        
+        return receivers_with_chat_ids
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        
+        # Prepare a list of receiver details with chat IDs
+        serialized_data = []
+        for item in queryset:
+            receiver_id = item['receiver']
+            chat_id = item['chat_id']
+            
+            # Retrieve receiver details from CustomUser model
+            receiver = CustomUser.objects.get(pk=receiver_id)
+            
+            # Serialize receiver details using UserSerializer
+            receiver_serializer = UserSerializer(receiver)
+            receiver_data = {
+                'receiver_details': receiver_serializer.data,
+                'chat_id': chat_id
+            }
+            serialized_data.append(receiver_data)
+        
+        return Response(serialized_data)

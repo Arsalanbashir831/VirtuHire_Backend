@@ -13,6 +13,7 @@ routers.register('job',views.JobViewSet)
 routers.register('appliedjobs',views.AppliedJobsViewSet)
 
 
+
 urlpatterns = [
    
     path('login', views.login),
@@ -20,6 +21,9 @@ urlpatterns = [
     path('auth_user', views.userData),
     path('verify_otp', views.verify_otp),
     path('forgot_password', views.forgotPassword),
+     path('chats/', views.ChatListView.as_view(), name='chats-list'),
+     path('receivers/', views.ReceiverDetailsView.as_view(), name='receiver-list'),
+    
     path('',include(routers.urls)),
   
     

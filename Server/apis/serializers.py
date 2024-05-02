@@ -1,6 +1,6 @@
 # from django.contrib.auth.models import User
 from rest_framework import serializers, viewsets
-from apis.models import Job,AppliedJobs,CustomUser
+from apis.models import Job,AppliedJobs,CustomUser,Message
 from django.contrib.auth.hashers import make_password
 
 # Serializers define the API representation.
@@ -45,3 +45,18 @@ class verifyOtpSerializer(serializers.ModelSerializer):
         instance.is_verified = True
         instance.save()
         return instance
+
+class MessageSerializer(serializers.ModelSerializer):
+    sender = CustomUser
+    receiver = CustomUser
+
+    class Meta:
+        model = Message
+        fields = ['sender', 'receiver', 'content', 'timestamp','chat_id']
+        
+        
+class ReceiverSerializer(serializers.Serializer):
+    receiver = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.all())
+    chat_id = serializers.CharField()
+
+        
