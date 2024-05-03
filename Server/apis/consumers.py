@@ -1,105 +1,120 @@
 import json
-from channels.generic.websocket import AsyncWebsocketConsumer
 from django.utils import timezone
-from .models import CustomUser, Message
+from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from rest_framework.authtoken.models import Token
+from channels.layers import get_channel_layer
+from .models import Message, CustomUser  # Ensure CustomUser is correctly imported
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        await self.accept()
+        self.user = None
+        self.room_group_name = None
 
-        headers = dict(self.scope['headers'])
-        auth_header_bytes = headers.get(b'authorization', b'')
-        auth_header = auth_header_bytes.decode() if auth_header_bytes else ''
+        # Extract the token from the query string
+        token = self.scope['query_string'].decode().split('=')[1]
+        self.user = await self.get_user_by_token(token)
 
-        if not auth_header.startswith('Token '):
+        if not self.user:
             await self.close()
-            return
-        
-        token = auth_header[len('Token '):].strip()
-        user = await self.authenticate_user(token)
-
-        if not user:
-            await self.close()
-            return
-
-        self.sender = user
-
-        # Extract chat_id from query parameters (if needed)
-        query_params = dict(pair.split('=') for pair in self.scope['query_string'].decode().split('&') if '=' in pair)
-        chat_id = query_params.get('chat_id')
-
-        if not chat_id:
-            await self.close()
-            return
-
-        self.chat_id = chat_id
-        self.room_name = f"chat_{self.chat_id}"
-
-        await self.channel_layer.group_add(self.room_name, self.channel_name)
-
-        # Send previous messages upon connection
-        await self.send_previous_messages()
+        else:
+            self.room_group_name = f"chat_{self.user.id}"
+            await self.channel_layer.group_add(
+                self.room_group_name,
+                self.channel_name
+            )
+            await self.accept()
 
     async def disconnect(self, close_code):
-        if hasattr(self, 'room_name'):
-            await self.channel_layer.group_discard(self.room_name, self.channel_name)
+        if self.room_group_name:
+            await self.channel_layer.group_discard(
+                self.room_group_name,
+                self.channel_name
+            )
 
-    async def receive(self, text_data):
-        data = json.loads(text_data)
-        message_content = data.get('message', '')
-        receiver_id = data.get('receiver_id', None)  # Extract receiver_id from the incoming data
+    async def receive(self, text_data=None, bytes_data=None):
+        text_data_json = json.loads(text_data)
+        command = text_data_json.get('command', '')
 
-        if message_content and receiver_id:
-            await self.save_message(self.sender.id, receiver_id, message_content)
+        if command == 'fetch_messages':
+            receiver_id = text_data_json['receiver_id']
+            messages = await self.fetch_messages(self.user.id, receiver_id)
+            await self.send(text_data=json.dumps({
+                'status': 'success',
+                'messages': messages
+            }))
+        elif command == 'send_message':
+            message_content = text_data_json['message']
+            receiver_id = text_data_json['receiver_id']
+
+            # Store the message in the database
+            message = await self.store_message(self.user.id, receiver_id, message_content)
+
+            # Get receiver channel group name
+            receiver_group_name = f"chat_{receiver_id}"
+            
+            # Get the current timestamp
+            timestamp = timezone.now().isoformat()
+
+            # Forward the message to the receiver's group
             await self.channel_layer.group_send(
-                self.room_name,
+                receiver_group_name,
                 {
-                    'type': 'chat.message',
-                    'sender_id': self.sender.id,
-                    'receiver_id': receiver_id,  # Include receiver_id in the message
+                    'type': 'chat_message',
                     'message': message_content,
-                    'timestamp': str(timezone.now())
+                    'sender_id': self.user.id,
+                    'receiver_id': receiver_id,
+                    'timestamp': timestamp
                 }
             )
 
+            # Send a response back to the sender
+            await self.send(text_data=json.dumps({
+                'status': 'success',
+                'message': message_content,
+                'receiver_id': receiver_id,
+                'timestamp': timestamp,
+                'message_id': message.id  # Optionally include the database ID of the message
+            }))
+        else:
+            await self.send(text_data=json.dumps({
+                'status': 'error',
+                'message': 'Invalid command'
+            }))
+
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({
-            'type': 'chat.message',
-            'sender_id': event['sender_id'],
-            'receiver_id': event['receiver_id'],  # Send receiver_id along with the message
             'message': event['message'],
+            'sender_id': event['sender_id'],
             'timestamp': event['timestamp']
         }))
 
     @sync_to_async
-    def authenticate_user(self, token):
+    def get_user_by_token(self, token):
         try:
             token_obj = Token.objects.get(key=token)
-            user = token_obj.user
-            return user
+            return token_obj.user
         except Token.DoesNotExist:
             return None
 
     @sync_to_async
-    def save_message(self, sender_id, receiver_id, content):
+    def store_message(self, sender_id, receiver_id, content):
         sender = CustomUser.objects.get(id=sender_id)
         receiver = CustomUser.objects.get(id=receiver_id)
-        message = Message(sender=sender, receiver=receiver, content=content, chat_id=self.chat_id)
-        message.save()
+        message = Message.objects.create(sender=sender, receiver=receiver, content=content)
+        return message
 
     @sync_to_async
-    def fetch_room_messages(self):
-        messages = Message.objects.filter(chat_id=self.chat_id).order_by('timestamp')
-        return list(messages)  # Convert queryset to list
-
-    async def send_previous_messages(self):
-        messages = await self.fetch_room_messages()
-        for message in messages:
-            await self.chat_message({
-                'sender_id': message.sender.id,
-                'receiver_id': message.receiver.id,
-                'message': message.content,
-                'timestamp': str(message.timestamp)
-            })
+    def fetch_messages(self, sender_id, receiver_id):
+        messages = Message.objects.filter(
+            sender_id=sender_id, receiver_id=receiver_id
+        ).order_by('-timestamp')  # Assuming you want the newest messages first
+        return [
+            {
+                'id': message.id,
+                'sender_id': message.sender_id,
+                'receiver_id': message.receiver_id,
+                'content': message.content,
+                'timestamp': message.timestamp.isoformat()
+            } for message in messages
+        ]

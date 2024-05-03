@@ -221,24 +221,10 @@ def forgotPassword(request):
     forgot_password_email(email=user.email, name=user.username)
     return Response("Your Temporary Password is sended via Email", status=status.HTTP_200_OK)
 
-class ChatListView(generics.ListAPIView):
-    serializer_class = MessageSerializer
-    authentication_classes = [SessionAuthentication, TokenAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        chat_id = self.request.data.get('chat_id')
-
-        if not chat_id:
-            return Message.objects.none()  # Return empty queryset if chat_id is not provided
-        queryset = Message.objects.filter(chat_id=chat_id)
-
-        return queryset
 
 
 class ReceiverDetailsView(generics.ListAPIView):
-    serializer_class = ReceiverSerializer
+    serializer_class = UserSerializer
     authentication_classes = [SessionAuthentication, TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
@@ -246,30 +232,19 @@ class ReceiverDetailsView(generics.ListAPIView):
         # Get the authenticated user (sender)
         sender = self.request.user
         
-        # Retrieve messages sent by the authenticated sender
-        messages_sent_by_sender = Message.objects.filter(sender=sender)
-        receivers_with_chat_ids = messages_sent_by_sender.values('receiver', 'chat_id').distinct()
+        # Retrieve unique receivers based on messages sent by the sender
+        receivers = Message.objects.filter(sender=sender).values_list('receiver', flat=True).distinct()
         
-        return receivers_with_chat_ids
+        # Retrieve receiver details from CustomUser model
+        queryset = CustomUser.objects.filter(id__in=receivers)
+        
+        return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         
-        # Prepare a list of receiver details with chat IDs
-        serialized_data = []
-        for item in queryset:
-            receiver_id = item['receiver']
-            chat_id = item['chat_id']
-            
-            # Retrieve receiver details from CustomUser model
-            receiver = CustomUser.objects.get(pk=receiver_id)
-            
-            # Serialize receiver details using UserSerializer
-            receiver_serializer = UserSerializer(receiver)
-            receiver_data = {
-                'receiver_details': receiver_serializer.data,
-                'chat_id': chat_id
-            }
-            serialized_data.append(receiver_data)
+        # Serialize receiver details using UserSerializer
+        serializer = self.get_serializer(queryset, many=True)
         
-        return Response(serialized_data)
+        # Return serialized receiver details as a response
+        return Response(serializer.data)
