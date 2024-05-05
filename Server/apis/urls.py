@@ -22,6 +22,7 @@ urlpatterns = [
     path('verify_otp', views.verify_otp),
     path('forgot_password', views.forgotPassword),
      path('chat_users', views.ReceiverDetailsView.as_view(), name='receiver-list'),
+     path('update_password', views.update_password, name='update_password'),
     
     path('',include(routers.urls)),
   

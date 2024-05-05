@@ -15,6 +15,7 @@ from django.contrib.auth import authenticate, login
 from django.contrib.auth.hashers import check_password,make_password
 from rest_framework.decorators import action
 from apis.email import send_otp_via_email,forgot_password_email
+from django.db.models import Q
 
 @api_view(['POST'])
 def login(request):
@@ -39,16 +40,13 @@ def login(request):
 @authentication_classes([SessionAuthentication, TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def userData(request):
-    data ={
-        'id': request.user.id,
-        'username': request.user.username,
-        'email': request.user.email,
-        'first_name': request.user.first_name,
-        'last_name': request.user.last_name,
-        'is_verified': request.user.is_verified,
-    }
-    return Response(data,status=status.HTTP_200_OK)
+    user = request.user  # Get the current authenticated user
 
+    # Serialize user data using UserSerializer to include the profile URL
+    serializer = UserSerializer(user, context={'request': request})
+
+    # Return serialized data in the response
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
 # ViewSets define the view behavior.
 class UserViewSet(viewsets.ModelViewSet):
@@ -189,6 +187,26 @@ def signup(request):
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+@api_view(['POST'])
+def update_password(request):
+    email = request.data.get('email')
+    new_password = request.data.get('new_password')
+
+    if not email or not new_password:
+        return Response({"error": "Email and new password are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        user = CustomUser.objects.get(email=email)
+    except CustomUser.DoesNotExist:
+        return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+    user.password = new_password
+    user.save()
+
+    return Response({"success": "Password updated successfully."}, status=status.HTTP_200_OK)
+
 @api_view(['POST'])
 def verify_otp(request):
     email = request.data.get('email', None)
@@ -218,8 +236,8 @@ def forgotPassword(request):
     if not email:
         return Response("Email is required", status=status.HTTP_400_BAD_REQUEST)
     user = get_object_or_404(CustomUser, email=email)
-    forgot_password_email(email=user.email, name=user.username)
-    return Response("Your Temporary Password is sended via Email", status=status.HTTP_200_OK)
+    send_otp_via_email(email=user.email, name=user.username)
+    return Response("OTP SENDED TO EMAIL", status=status.HTTP_200_OK)
 
 
 
@@ -229,22 +247,24 @@ class ReceiverDetailsView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Get the authenticated user (sender)
-        sender = self.request.user
+        user = self.request.user
+
+        # We can use a Q object to filter messages where the current user is either the sender or receiver
+        # and then map to the opposite field (receiver for messages sent, sender for messages received)
+        messages = Message.objects.filter(
+            Q(sender=user) | Q(receiver=user)
+        )
         
-        # Retrieve unique receivers based on messages sent by the sender
-        receivers = Message.objects.filter(sender=sender).values_list('receiver', flat=True).distinct()
-        
-        # Retrieve receiver details from CustomUser model
-        queryset = CustomUser.objects.filter(id__in=receivers)
-        
+        # Extract user IDs from both sides of the conversation, avoiding duplicates directly in the query
+        user_ids = set(messages.values_list('receiver_id', flat=True)) | set(messages.values_list('sender_id', flat=True))
+        user_ids.discard(user.id)  # Remove the user's own ID from the set
+
+        # Fetch the users from the collected IDs
+        queryset = CustomUser.objects.filter(id__in=user_ids)
+
         return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        
-        # Serialize receiver details using UserSerializer
         serializer = self.get_serializer(queryset, many=True)
-        
-        # Return serialized receiver details as a response
         return Response(serializer.data)

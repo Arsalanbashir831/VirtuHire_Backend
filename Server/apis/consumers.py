@@ -5,6 +5,8 @@ from asgiref.sync import sync_to_async
 from rest_framework.authtoken.models import Token
 from channels.layers import get_channel_layer
 from .models import Message, CustomUser  # Ensure CustomUser is correctly imported
+from channels.db import database_sync_to_async
+from django.db.models import Q
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -38,6 +40,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         if command == 'fetch_messages':
             receiver_id = text_data_json['receiver_id']
+            # Fetch messages where either the current user is the sender or the receiver
             messages = await self.fetch_messages(self.user.id, receiver_id)
             await self.send(text_data=json.dumps({
                 'status': 'success',
@@ -46,9 +49,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
         elif command == 'send_message':
             message_content = text_data_json['message']
             receiver_id = text_data_json['receiver_id']
+            sender_id = text_data_json['sender_id']
 
             # Store the message in the database
-            message = await self.store_message(self.user.id, receiver_id, message_content)
+            message = await self.store_message(sender_id, receiver_id, message_content)
 
             # Get receiver channel group name
             receiver_group_name = f"chat_{receiver_id}"
@@ -62,7 +66,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 {
                     'type': 'chat_message',
                     'message': message_content,
-                    'sender_id': self.user.id,
+                    'sender_id': sender_id,
                     'receiver_id': receiver_id,
                     'timestamp': timestamp
                 }
@@ -74,7 +78,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'message': message_content,
                 'receiver_id': receiver_id,
                 'timestamp': timestamp,
-                'message_id': message.id  # Optionally include the database ID of the message
+                'message_id': message.id,
+                "sender_id":sender_id
             }))
         else:
             await self.send(text_data=json.dumps({
@@ -104,17 +109,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message = Message.objects.create(sender=sender, receiver=receiver, content=content)
         return message
 
-    @sync_to_async
-    def fetch_messages(self, sender_id, receiver_id):
+    async def fetch_messages(self, user_id, other_user_id):
+        # Call the synchronous ORM operation wrapped in database_sync_to_async
+        messages = await database_sync_to_async(self.get_messages)(user_id, other_user_id)
+        return messages
+
+    def get_messages(self, user_id, other_user_id):
+        # Fetch messages, ensuring datetime is serialized
         messages = Message.objects.filter(
-            sender_id=sender_id, receiver_id=receiver_id
-        ).order_by('-timestamp')  # Assuming you want the newest messages first
-        return [
-            {
-                'id': message.id,
-                'sender_id': message.sender_id,
-                'receiver_id': message.receiver_id,
-                'content': message.content,
-                'timestamp': message.timestamp.isoformat()
-            } for message in messages
-        ]
+            Q(sender_id=user_id, receiver_id=other_user_id) |
+            Q(sender_id=other_user_id, receiver_id=user_id)
+        ).order_by('timestamp').values(
+            'id', 'sender_id', 'receiver_id', 'content', 'timestamp'
+        )
+        
+        # Convert datetime objects to strings for JSON serialization
+        messages_list = list(messages)
+        for message in messages_list:
+            message['timestamp'] = message['timestamp'].isoformat() if message['timestamp'] else None
+
+        return messages_list
