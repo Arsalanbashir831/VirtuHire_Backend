@@ -21,18 +21,20 @@ from django.db.models import Q
 def login(request):
     username = request.data.get('username', None)
     password = request.data.get('password', None)
+
     if not username or not password:
-        return Response("Username and password are required", status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Username and password are required"}, status=status.HTTP_400_BAD_REQUEST)
+
     user = get_object_or_404(CustomUser, username=username)
-    print(make_password(password))
-    if not user.password == password:
-        return Response("Incorrect password", status=status.HTTP_401_UNAUTHORIZED)
+    # Use check_password to verify the hashed password
+    if not check_password(password, user.password):
+        return Response({"error": "Incorrect password"}, status=status.HTTP_401_UNAUTHORIZED)
+
     token, created = Token.objects.get_or_create(user=user)
     serializer_context = {'request': request}
-
     serializer = UserSerializer(user, context=serializer_context)
-    return Response({'token': token.key, 'user': serializer.data})
-
+    
+    return Response({'token': token.key, 'user': serializer.data}, status=status.HTTP_200_OK)
 
 
 # Testing Token Authentication
@@ -161,8 +163,9 @@ class JobViewSet(viewsets.ModelViewSet):
 @api_view(['POST'])
 def signup(request):
     serializer = UserSerializer(data=request.data)
-    
+
     if serializer.is_valid():
+        # Save the user with the hashed password
         user = serializer.save()
 
         # Use filter instead of get to handle multiple users with the same email
@@ -184,7 +187,7 @@ def signup(request):
 
             send_otp_via_email(email=latest_user.email, name=latest_user.username)
             return Response(data, status=status.HTTP_201_CREATED)
-    
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

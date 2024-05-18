@@ -14,7 +14,7 @@ class UserSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
-        # Do not hash the password, store it as plain text
+        validated_data['password'] = make_password(validated_data['password'])
         return super().create(validated_data)
 
 

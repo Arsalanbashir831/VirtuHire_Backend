@@ -1,6 +1,7 @@
 
 from pathlib import Path
 import os
+import dj_database_url
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -36,11 +37,21 @@ INSTALLED_APPS = [
 WSGI_APPLICATION = 'Server.wsgi.application'
 ASGI_APPLICATION = 'Server.asgi.application'
 
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels.layers.InMemoryChannelLayer',
+#     },
+# }   
+
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            # "hosts": [('127.0.0.1', 6379)],
+            "hosts": [("rediss://red-cp4esj0cmk4c73ej97e0:jt3prO3hWPfVaCRDk7nXmpgJ7SwA7T2L@oregon-redis.render.com:6379")],
+        },
     },
-}   
+}
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -86,6 +97,8 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+DATABASES["default"]=dj_database_url.parse("postgres://virtuhire_user:x1pqX3JLmSYby261nBM5gJPCqhWBXsT1@dpg-cp4bgp8cmk4c73ehgar0-a.oregon-postgres.render.com/virtuhire")
 
 
 # Password validation
