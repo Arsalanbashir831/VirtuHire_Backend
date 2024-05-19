@@ -37,21 +37,21 @@ INSTALLED_APPS = [
 WSGI_APPLICATION = 'Server.wsgi.application'
 ASGI_APPLICATION = 'Server.asgi.application'
 
-# CHANNEL_LAYERS = {
-#     'default': {
-#         'BACKEND': 'channels.layers.InMemoryChannelLayer',
-#     },
-# }   
-
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            # "hosts": [('127.0.0.1', 6379)],
-            "hosts": [("rediss://red-cp4esj0cmk4c73ej97e0:jt3prO3hWPfVaCRDk7nXmpgJ7SwA7T2L@oregon-redis.render.com:6379")],
-        },
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
-}
+}   
+
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             "hosts": [('127.0.0.1', 6379)],
+#             # "hosts": [("rediss://red-cp4esj0cmk4c73ej97e0:jt3prO3hWPfVaCRDk7nXmpgJ7SwA7T2L@oregon-redis.render.com:6379")],
+#         },
+#     },
+# }
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
