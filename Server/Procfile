@@ -1,1 +1,1 @@
-web: uvicorn Server.asgi:application --host 0.0.0.0 --port 8989
+web: gunicorn Server.wsgi --log-file 
