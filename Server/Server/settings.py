@@ -5,8 +5,7 @@ import dj_database_url
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# DJANGO_SETTINGS_MODULE=mysite.settings
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Server.settings')
+
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-(*y*j!a$pps)(18k1&_gzebf38r+p+o4+xww&p(h_#%vu-w7!r'
