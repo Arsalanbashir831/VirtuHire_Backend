@@ -16,6 +16,7 @@ from django.contrib.auth.hashers import check_password,make_password
 from rest_framework.decorators import action
 from apis.email import send_otp_via_email,forgot_password_email
 from django.db.models import Q
+from django.contrib.auth.hashers import make_password
 
 @api_view(['POST'])
 def login(request):
@@ -205,7 +206,7 @@ def update_password(request):
         return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
-    user.password = new_password
+    user.password = make_password(new_password) 
     user.save()
 
     return Response({"success": "Password updated successfully."}, status=status.HTTP_200_OK)
